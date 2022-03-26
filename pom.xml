@@ -38,6 +38,12 @@
             <artifactId>zookeeper</artifactId>
             <version>3.8.0</version>
         </dependency>
+        <!--使用推荐的zookeeper客户端Curator-->
+        <dependency>
+            <groupId>org.apache.curator</groupId>
+            <artifactId>curator-recipes</artifactId>
+            <version>5.2.1</version>
+        </dependency>
     </dependencies>
 
     <build>

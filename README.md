@@ -155,4 +155,56 @@
         
 ### 方式2、使用curator客户端提供的锁实现      
     1、引入curator客户端
+    <dependency>
+      <groupId>org.apache.curator</groupId>
+      <artifactId>curator-recipes</artifactId>
+      <version>5.2.1</version>
+    </dependency>
     2、直接调用curator实现的锁  
+        启动类添加：
+            @Bean(initMethod = "start", destroyMethod = "close")
+            public CuratorFramework getCuratorClient(){
+                RetryPolicy retryPolicy = new ExponentialBackoffRetry(1000, 3);
+                CuratorFramework client = CuratorFrameworkFactory.newClient("127.0.0.1:2181", retryPolicy);
+                return client;
+            }
+        测试api：
+            @Autowired
+            private CuratorFramework client;
+            @GetMapping("/curatorLock")
+            public String curatorLock() {
+                log.info("进入了方法~");
+                //lockPath区分不同的业务
+                String lockPath = "/order";
+                InterProcessMutex lock = new InterProcessMutex(client, lockPath);
+                try {
+                    if (lock.acquire(30, TimeUnit.SECONDS) )
+                    {
+                        log.info("获得了锁");
+                        Thread.sleep(10000);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }finally {
+                    try {
+                        lock.release();
+                        log.info("释放了锁");
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+                log.info("方法执行完成");
+                return "方法执行完成";
+            }
+        结果：先访问8090，再访问8091。关键到【2022-03-26 23:36:05】时间点8090释放了锁以后，8091才获得到锁。
+            8090服务：
+                2022-03-26 23:35:55.395  INFO 17188 --- [nio-8090-exec-2] c.h.d.api.ZookeeperController            : 进入了方法~
+                2022-03-26 23:35:55.512  INFO 17188 --- [nio-8090-exec-2] c.h.d.api.ZookeeperController            : 获得了锁
+                2022-03-26 23:36:05.631  INFO 17188 --- [nio-8090-exec-2] c.h.d.api.ZookeeperController            : 释放了锁
+                2022-03-26 23:36:05.631  INFO 17188 --- [nio-8090-exec-2] c.h.d.api.ZookeeperController            : 方法执行完成
+            8091服务：
+                2022-03-26 23:36:00.593  INFO 31124 --- [nio-8091-exec-2] c.h.d.api.ZookeeperController            : 进入了方法~
+                2022-03-26 23:36:05.643  INFO 31124 --- [nio-8091-exec-2] c.h.d.api.ZookeeperController            : 获得了锁
+                2022-03-26 23:36:15.766  INFO 31124 --- [nio-8091-exec-2] c.h.d.api.ZookeeperController            : 释放了锁
+                2022-03-26 23:36:15.767  INFO 31124 --- [nio-8091-exec-2] c.h.d.api.ZookeeperController            : 方法执行完成
+            
